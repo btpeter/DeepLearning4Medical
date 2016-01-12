@@ -3,9 +3,7 @@ import csv
 import numpy as np
 import math
 
-'''
-	load csv data
-'''
+''' load csv data '''
 def readcsv(filename):
 	header = []
 	activities = []
@@ -24,8 +22,8 @@ def readcsv(filename):
 
 	return header, descriptors, activities
 
-
-def get_feature_normalization_arr(train_headers, test_headers):
+''' [Normalization] Merge the headers between train set and test set '''
+def get_feature_normalization_arr_merge(train_headers, test_headers):
 
 	all_features = train_headers[:]
 	all_features.extend(test_headers)
@@ -64,7 +62,28 @@ def get_feature_normalization_arr(train_headers, test_headers):
 
 	return len(all_features_digits), train_feature_index_arr, test_feature_index_arr
 
-def contract_data_set(train_file, test_file):
+''' [Normalization] Extract the public headers between train set and test set '''
+def get_feature_normalization_arr_extract(train_headers, test_headers):
+	result_headers = []
+	base_headers = []
+	compare_headers = []
+	if len(train_headers) > len(test_headers):
+		base_headers = test_headers
+		compare_headers = train_headers
+	else:
+		base_headers = train_headers
+		compare_headers = test_headers
+
+	for header_base in base_headers:
+		for header_compare in compare_headers:
+			if header_base == header_compare:
+				result_headers.append(header_base)
+				break
+	return len(result_headers), result_headers
+
+
+
+def contract_data_set(train_file, test_file, strategy="merge"):
 	headers_train, descriptors_train_raw, activities_train = readcsv(train_file)
 	headers_test, descriptors_test_raw, activities_test = readcsv(test_file)
 
@@ -74,27 +93,57 @@ def contract_data_set(train_file, test_file):
 	num_examples_train = descriptors_train_raw.shape[0]
 	num_examples_test = descriptors_test_raw.shape[0]
 
-	# normalization features
-	num_feature, train_feature_index_arr, test_feature_index_arr = get_feature_normalization_arr(headers_train, headers_test)
+	if strategy == "merge":
+		# normalization features
+		num_feature, train_feature_index_arr, test_feature_index_arr = get_feature_normalization_arr_merge(headers_train, headers_test)
 
-	descriptors_train = np.zeros([num_examples_train, num_feature])
-	descriptors_test = np.zeros([num_examples_test, num_feature])
+		descriptors_train = np.zeros([num_examples_train, num_feature])
+		descriptors_test = np.zeros([num_examples_test, num_feature])
 
-	# build train_descriptors
-	raw_count = 0
-	for index in train_feature_index_arr:
-		descriptors_train[:,index] = descriptors_train_raw[:,raw_count]
-		raw_count+=1
+		# build train_descriptors
+		raw_count = 0
+		for index in train_feature_index_arr:
+			descriptors_train[:,index] = descriptors_train_raw[:,raw_count]
+			raw_count+=1
 
 
-	raw_count = 0
-	# build test_descriptors
-	for index in test_feature_index_arr:
-		descriptors_test[:,index] = descriptors_test_raw[:,raw_count]
-		raw_count+=1
+		raw_count = 0
+		# build test_descriptors
+		for index in test_feature_index_arr:
+			descriptors_test[:,index] = descriptors_test_raw[:,raw_count]
+			raw_count+=1
 
-	print "Normalization Done."
-	return descriptors_train, activities_train, descriptors_test, activities_test
+		print "Normalization Done."
+		return descriptors_train, activities_train, descriptors_test, activities_test
+	
+	if strategy =="extract":
+		# normalization features
+		num_feature, result_headers = get_feature_normalization_arr_extract(headers_train, headers_test)
+
+		descriptors_train = np.zeros([num_examples_train, num_feature])
+		descriptors_test = np.zeros([num_examples_test, num_feature])
+
+		build_index = 0
+		for header_res in result_headers:
+			# build train_descriptors
+			raw_count = 0
+			for header_train in headers_train:
+				if header_res == header_train:
+					descriptors_train[:,build_index] = descriptors_train_raw[:,raw_count]
+					break
+				raw_count+=1	
+			
+			# build test_descriptors
+			raw_count = 0
+			for header_test in headers_test:
+				if header_res == header_test:
+					descriptors_test[:,build_index] = descriptors_test_raw[:,raw_count]
+					break
+				raw_count+=1
+			build_index+=1
+			
+		print "Normalization Done."
+		return descriptors_train, activities_train, descriptors_test, activities_test
 
 
 
@@ -134,7 +183,7 @@ class DataSet(object):
 
 
 	def next_batch(self, batch_size):
-		'''	Return the next batch_size examples from this data set.'''
+		'''	Return the next batch_size examples from this data set. '''
 		start = self._index_in_epoch
 		self._index_in_epoch += batch_size
 		if self._index_in_epoch > self._num_examples:
@@ -157,14 +206,12 @@ def read_data_sets(file_dir_train, file_dir_test):
 		pass
 	data_sets = DataSets()
 
-	'''
-		load data files && format(log transform)
-	'''
+	''' load data files && format(log transform) '''
 
-	train_descriptors_raw, train_activities_raw, test_descriptors_raw, test_activities_raw = contract_data_set(file_dir_train, file_dir_test)
+	train_descriptors_raw, train_activities_raw, test_descriptors_raw, test_activities_raw = contract_data_set(file_dir_train, file_dir_test, strategy="extract")
 
-	#train_descriptors = np.array(train_descriptors_raw)
-	train_descriptors = np.array(log_transform_matrix(train_descriptors_raw))
+	train_descriptors = np.array(train_descriptors_raw)
+	#train_descriptors = np.array(log_transform_matrix(train_descriptors_raw))
 	train_activities = zero_mean_and_unit_variance(train_activities_raw)
 	#train_activities_one_hot = activity_format(train_activities_log, CLASS_NUM)
 	
@@ -173,8 +220,8 @@ def read_data_sets(file_dir_train, file_dir_test):
 	#train_activities = np.array(train_activities_one_hot)
 
 	
-	#test_descriptors = np.array(test_descriptors_raw)
-	test_descriptors = np.array(log_transform_matrix(test_descriptors_raw))
+	test_descriptors = np.array(test_descriptors_raw)
+	#test_descriptors = np.array(log_transform_matrix(test_descriptors_raw))
 	test_activities = zero_mean_and_unit_variance(test_activities_raw)
 	#test_activities_one_hot = activity_format(test_activities_log, CLASS_NUM)
 	
@@ -192,9 +239,7 @@ def read_data_sets(file_dir_train, file_dir_test):
 
 
 
-'''
-	Matrix log transform
-'''
+''' Matrix log transform '''
 
 def log_transform_matrix(matrix):
 	matrix_log10_result = []
@@ -237,13 +282,50 @@ def zero_mean_and_unit_variance(data_list):
 	print "Zeros mean and unit variance Done."
 	return bias/std
 
-'''
-	Calculate R^2 
-'''
+
+''' Calculate correlation r '''
+def compute_correlation(X, Y):
+	xBar = np.mean(X)
+	yBar = np.mean(Y)
+	SSR = 0
+	varX = 0
+	varY = 0
+	for i in range(0, len(X)):
+		diffXXBar = X[i] - xBar
+		diffYYBar = Y[i] - yBar
+		SSR += (diffXXBar * diffYYBar)
+		varX += diffXXBar**2
+		varY += diffYYBar**2
+	SST = math.sqrt(varX * varY)
+	return SSR / SST
+
+''' Calculate R^2 (for sample linregress)'''
 def R2(y_test, y_true):
-	return 1 - ((y_test - y_true)**2).sum() / ((y_true - y_test.mean())**2).sum()
+	# Return R^2 where y_test and y_true are array-like
+	r_value = compute_correlation(y_test, y_true)
+	return r_value**2
+
+''' Calculate R^2 (for sample linregress)'''
+def R2_polynomial_regression(x, y, degree):
+	results = {}
+	coeffs = np.polyfit(x, y, degree)
+	# Polynomial Coefficients
+	results['polynomial'] = coeffs.tolist()
+
+	# r-squared
+	p = np.poly1d(coeffs)
+
+	# fit values, and mean
+	yhat = p(x)
+	ybar = np.sum(y)/len(y)
+	ssreg = np.sum((yhat - ybar)**2)
+	sstot = np.sum((y - ybar)**2)
+	results['determination'] = ssreg / sstot
+
+	return results
 
 
+''' Format activity to one-hot '''
 def activity_format(data_list, num_class):
 	data_list_temp = data_list[:]	# copy the array
 	class_jenks_breaks = getClassJenksBreaks(data_list_temp, num_class)

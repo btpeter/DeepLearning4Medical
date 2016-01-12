@@ -2,14 +2,16 @@ import tensorflow as tf
 import numpy as np
 import data_loader
 
-#LOG_ADDRESS="/mnt/DeepLearning4Medical/tensorflow_log/drag_design"
-LOG_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/tensorflow_log/drag_design"
-#TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/test1"
-TRAINED_MODEL_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/trained_model/drag_design/test1"
+LOG_ADDRESS="/mnt/DeepLearning4Medical/tensorflow_log/drag_design"
+#LOG_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/tensorflow_log/drag_design"
+TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/test1"
+#TRAINED_MODEL_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/trained_model/drag_design/test1"
 
+# set random seed
+tf.set_random_seed(5)
 
 def init_weight(shape, name):
-	return tf.Variable(tf.random_normal(shape, stddev=0.01), name)
+	return tf.Variable(tf.random_normal(shape, mean=0.0, stddev=0.01), name)
 
 def init_bias(dim, name):
 	return tf.Variable(tf.zeros([dim]), name)
@@ -47,11 +49,11 @@ def build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo):
 
 
 # file address in docker envirement
-#data_file_train = "/mnt/DeepLearning4Medical/data/drag_design/METAB_training_disguised.csv"
-#data_file_test = "/mnt/DeepLearning4Medical/data/drag_design/METAB_test_disguised.csv"
+data_file_train = "/mnt/DeepLearning4Medical/data/drag_design/NK1_training_disguised.csv"
+data_file_test = "/mnt/DeepLearning4Medical/data/drag_design/NK1_test_disguised.csv"
 
-data_file_train = "/Users/peter/Documents/Work/data/drag_design/METAB_training_disguised.csv"
-data_file_test = "/Users/peter/Documents/Work/data/drag_design/METAB_test_disguised.csv"
+#data_file_train = "/Users/peter/Documents/Work/data/drag_design/METAB_training_disguised.csv"
+#data_file_test = "/Users/peter/Documents/Work/data/drag_design/METAB_test_disguised.csv"
 
 # fill the file_dir
 drag_data = data_loader.read_data_sets(data_file_train, data_file_test)
@@ -93,6 +95,7 @@ y_ = build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo)
 #cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_, Y))
 cost = tf.reduce_mean(tf.pow(Y-y_, 2))
 
+#train_op = tf.train.GradientDescentOptimizer(0.01).minimize(cost)
 train_op = tf.train.MomentumOptimizer(0.05, 0.9).minimize(cost)
 
 # Add ops to save and restore all the variables
@@ -108,11 +111,14 @@ with tf.Session() as sess:
 	merged_summary_op = tf.merge_all_summaries()
 	summary_writer = tf.train.SummaryWriter(LOG_ADDRESS, tf.Graph.as_graph_def(sess.graph))
 
-	for epoch in range(350):
+	for epoch in range(300):
 		print "Training in epoch: ", epoch
-		batch_xs, batch_ys = drag_data.train.next_batch(128)
-		sess.run(train_op, feed_dict={X: batch_xs, Y: batch_ys})
-		print "Cost", sess.run(cost, feed_dict={X: batch_xs, Y: batch_ys})
+		for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
+			#batch_xs, batch_ys = drag_data.train.next_batch(128)
+			#sess.run(train_op, feed_dict={X: batch_xs, Y: batch_ys})
+			#print "Cost", sess.run(cost, feed_dict={X: batch_xs, Y: batch_ys})
+			sess.run(train_op, feed_dict={X: trX[start:end], Y: trY[start:end]})
+			print "Cost", sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
 
 
 	batch_xs, batch_ys = drag_data.test.next_batch(128)
