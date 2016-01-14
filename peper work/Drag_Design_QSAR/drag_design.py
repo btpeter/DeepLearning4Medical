@@ -29,16 +29,16 @@ def build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo):
 	h1 = pre_h1
 
 	pre_h2 = build_hidden_layer_ReLU(h1, w2, b2)
-	h2 = add_dropout(pre_h2, 0.25)
+	h2 = add_dropout(pre_h2, 0.75)
 
 	pre_h3 = build_hidden_layer_ReLU(h2, w3, b3)
-	h3 = add_dropout(pre_h3, 0.25)
+	h3 = add_dropout(pre_h3, 0.75)
 
 	pre_h4 = build_hidden_layer_ReLU(h3, w4, b4)
-	h4 = add_dropout(pre_h4, 0.25)
+	h4 = add_dropout(pre_h4, 0.75)
 
-	pre_model = build_hidden_layer_ReLU(h4, wo, bo)
-	model = add_dropout(pre_model, 0.1)
+	pre_model = tf.matmul(h4, wo)+bo
+	model = add_dropout(pre_model, 0.9)
 
 	return model
 
