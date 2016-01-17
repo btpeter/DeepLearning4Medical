@@ -425,4 +425,3 @@ def log_transform_2(matrix):
 				matrix_log10_result.append(row_log10_transform)
 	return matrix_log10_result
 
-

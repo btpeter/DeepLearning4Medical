@@ -4,11 +4,19 @@ import data_loader
 
 LOG_ADDRESS="/mnt/DeepLearning4Medical/tensorflow_log/drag_design"
 #LOG_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/tensorflow_log/drag_design"
-TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/test1"
+TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/NK1_test_10"
 #TRAINED_MODEL_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/trained_model/drag_design/test1"
 
+
+CONSOLE_OUTPUT="/mnt/DeepLearning4Medical/console_output/NK1_test_10.txt"
+STATISTIC_RESULT="/mnt/DeepLearning4Medical/statistic_result/NK1_test_10.txt"
+
+
+NUM_CORES = 20
+
+
 # set random seed
-tf.set_random_seed(5)
+#tf.set_random_seed(5)
 
 def init_weight(shape, name):
 	return tf.Variable(tf.random_normal(shape, mean=0.0, stddev=0.01), name)
@@ -26,7 +34,8 @@ def build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo):
 	pre_h1 = build_hidden_layer_ReLU(X, w1, b1)
 
 	# input with no dropout
-	h1 = pre_h1
+	h1 = add_dropout(pre_h1, 0.75)
+	#h1 = pre_h1
 
 	pre_h2 = build_hidden_layer_ReLU(h1, w2, b2)
 	h2 = add_dropout(pre_h2, 0.75)
@@ -35,10 +44,10 @@ def build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo):
 	h3 = add_dropout(pre_h3, 0.75)
 
 	pre_h4 = build_hidden_layer_ReLU(h3, w4, b4)
-	h4 = add_dropout(pre_h4, 0.75)
+	h4 = add_dropout(pre_h4, 0.9)
 
-	pre_model = tf.matmul(h4, wo)+bo
-	model = add_dropout(pre_model, 0.9)
+	model = tf.matmul(h4, wo)+bo
+	#model = add_dropout(model, 0.9)
 
 	return model
 
@@ -95,8 +104,8 @@ y_ = build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo)
 #cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_, Y))
 cost = tf.reduce_mean(tf.pow(Y-y_, 2))
 
-#train_op = tf.train.GradientDescentOptimizer(0.01).minimize(cost)
-train_op = tf.train.MomentumOptimizer(0.05, 0.9).minimize(cost)
+train_op = tf.train.GradientDescentOptimizer(0.05).minimize(cost)
+#train_op = tf.train.MomentumOptimizer(0.05, 0.9).minimize(cost)
 
 # Add ops to save and restore all the variables
 saver = tf.train.Saver()
@@ -104,38 +113,62 @@ predict_op = y_
 
 
 
+# Create output log && statistic file objects
+log_file_object = open(CONSOLE_OUTPUT, 'w')
+print "Write :", CONSOLE_OUTPUT
+statistic_file_object = open(STATISTIC_RESULT, 'w')
+print "Write :", STATISTIC_RESULT
+
+
+
+
 init = tf.initialize_all_variables()
-with tf.Session() as sess:
+with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, intra_op_parallelism_threads=NUM_CORES)) as sess:
 	sess.run(init)
 
 	merged_summary_op = tf.merge_all_summaries()
 	summary_writer = tf.train.SummaryWriter(LOG_ADDRESS, tf.Graph.as_graph_def(sess.graph))
 
-	for epoch in range(300):
+	for epoch in range(350):
 		print "Training in epoch: ", epoch
 		for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
-			#batch_xs, batch_ys = drag_data.train.next_batch(128)
-			#sess.run(train_op, feed_dict={X: batch_xs, Y: batch_ys})
-			#print "Cost", sess.run(cost, feed_dict={X: batch_xs, Y: batch_ys})
 			sess.run(train_op, feed_dict={X: trX[start:end], Y: trY[start:end]})
-			print "Cost", sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
+			cost_log = sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
+			print "Cost", cost_log
+			
+			# write file
+			log_file_object.write("Cost: "+str(cost_log)+"\r\n")
 
-
-	batch_xs, batch_ys = drag_data.test.next_batch(128)
-	predict_result = sess.run(predict_op, feed_dict={X: batch_xs, Y: batch_ys})
+# predict option
+	#batch_xs, batch_ys = drag_data.test.next_batch(128)
+	predict_result = sess.run(predict_op, feed_dict={X: teX, Y: teY})
 	print predict_result
 
-	R2 = data_loader.R2(np.array(predict_result), batch_ys)
+	# write file
+	statistic_file_object.write("True Activities: \r\n")
+	for true_y in teY:
+		statistic_file_object.write(str(true_y)+"\r\n")
+	statistic_file_object.write("Predict Activities: \r\n")
+	for predict_y in predict_result:
+		statistic_file_object.write(str(predict_y)+"\r\n")
+
+# evaluate with r^2
+	R2 = data_loader.R2(np.array(predict_result), teY)
 	print "R2 : ", R2
 
+	# write file
+	statistic_file_object.write("R2 : \r\n")
+	statistic_file_object.write(str(R2)+"\r\n")
 
 	# Save the variables to disk
 	save_path = saver.save(sess, TRAINED_MODEL_ADDRESS)
 	print "Model saved in file: ", save_path
 
 
-
-
+log_file_object.close()
+print "Close :", CONSOLE_OUTPUT
+statistic_file_object.close()
+print "Close :", STATISTIC_RESULT
 
 
 
