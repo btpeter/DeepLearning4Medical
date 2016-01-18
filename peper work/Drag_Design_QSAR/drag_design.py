@@ -1,18 +1,27 @@
 import tensorflow as tf
 import numpy as np
 import data_loader
+import sys
+
+
+# system_parameters
+PARAM_TEST_OUTPUT_FILE_NAME = sys.argv[1]
+#PARAM_LEARNING_RATE = float(sys.argv[2])
+PARAM_MOMENTUM = float(sys.argv[2])
+#PARAM_NON_ZEROS_CUTOFF = int(sys.argv[2])
+PARAM_NON_ZEROS_CUTOFF = 1000
 
 LOG_ADDRESS="/mnt/DeepLearning4Medical/tensorflow_log/drag_design"
 #LOG_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/tensorflow_log/drag_design"
-TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/NK1_test_10"
+TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/160118/other_para_test/"+PARAM_TEST_OUTPUT_FILE_NAME
 #TRAINED_MODEL_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/trained_model/drag_design/test1"
 
 
-CONSOLE_OUTPUT="/mnt/DeepLearning4Medical/console_output/NK1_test_10.txt"
-STATISTIC_RESULT="/mnt/DeepLearning4Medical/statistic_result/NK1_test_10.txt"
+CONSOLE_OUTPUT="/mnt/DeepLearning4Medical/console_output/160118/other_para_test/"+PARAM_TEST_OUTPUT_FILE_NAME+".txt"
+STATISTIC_RESULT="/mnt/DeepLearning4Medical/statistic_result/160118/other_para_test/"+PARAM_TEST_OUTPUT_FILE_NAME+".txt"
 
 
-NUM_CORES = 20
+NUM_CORES = 4
 
 
 # set random seed
@@ -65,12 +74,12 @@ data_file_test = "/mnt/DeepLearning4Medical/data/drag_design/NK1_test_disguised.
 #data_file_test = "/Users/peter/Documents/Work/data/drag_design/METAB_test_disguised.csv"
 
 # fill the file_dir
-drag_data = data_loader.read_data_sets(data_file_train, data_file_test)
+drag_data = data_loader.read_data_sets(data_file_train, data_file_test, PARAM_NON_ZEROS_CUTOFF)
 trX, trY, teX, teY = drag_data.train.descriptors, drag_data.train.activities, drag_data.test.descriptors, drag_data.test.activities
 num_features = drag_data.train.num_features
 
 
-print "NUM OF FEATURE: ", num_features
+#print "NUM OF FEATURE: ", num_features
 
 
 '''
@@ -104,8 +113,12 @@ y_ = build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo)
 #cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_, Y))
 cost = tf.reduce_mean(tf.pow(Y-y_, 2))
 
-train_op = tf.train.GradientDescentOptimizer(0.05).minimize(cost)
-#train_op = tf.train.MomentumOptimizer(0.05, 0.9).minimize(cost)
+#train_op = tf.train.GradientDescentOptimizer(PARAM_LEARNING_RATE).minimize(cost)
+train_op = tf.train.MomentumOptimizer(0.05, PARAM_MOMENTUM).minimize(cost)
+#train_op = tf.train.AdagradOptimizer(PARAM_LEARNING_RATE).minimize(cost)
+#train_op = tf.train.AdamOptimizer(PARAM_LEARNING_RATE).minimize(cost)
+#train_op = tf.train.FtrlOptimizer(PARAM_LEARNING_RATE).minimize(cost)
+#train_op = tf.train.RMSPropOptimizer(PARAM_LEARNING_RATE, 0.9).minimize(cost)
 
 # Add ops to save and restore all the variables
 saver = tf.train.Saver()
@@ -115,9 +128,9 @@ predict_op = y_
 
 # Create output log && statistic file objects
 log_file_object = open(CONSOLE_OUTPUT, 'w')
-print "Write :", CONSOLE_OUTPUT
+#print "Write :", CONSOLE_OUTPUT
 statistic_file_object = open(STATISTIC_RESULT, 'w')
-print "Write :", STATISTIC_RESULT
+#print "Write :", STATISTIC_RESULT
 
 
 
@@ -130,21 +143,32 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 	summary_writer = tf.train.SummaryWriter(LOG_ADDRESS, tf.Graph.as_graph_def(sess.graph))
 
 	for epoch in range(350):
-		print "Training in epoch: ", epoch
+		#print "Training in epoch: ", epoch
+		log_file_object.write("Training in epoch: "+str(epoch)+"\r\n")
 		for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
 			sess.run(train_op, feed_dict={X: trX[start:end], Y: trY[start:end]})
 			cost_log = sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
-			print "Cost", cost_log
+			#print "Cost", cost_log
 			
 			# write file
 			log_file_object.write("Cost: "+str(cost_log)+"\r\n")
+		log_file_object.flush()
+
+		predict_result = sess.run(predict_op, feed_dict={X: teX, Y: teY})
+		statistic_file_object.write("Training in epoch: "+str(epoch)+"\r\n")
+		statistic_file_object.write("R2 : \r\n")
+		R2 = data_loader.R2(np.array(predict_result), teY)
+		statistic_file_object.write(str(R2)+"\r\n")
+		statistic_file_object.flush()
 
 # predict option
 	#batch_xs, batch_ys = drag_data.test.next_batch(128)
 	predict_result = sess.run(predict_op, feed_dict={X: teX, Y: teY})
-	print predict_result
+	#print predict_result
+
 
 	# write file
+	statistic_file_object.write("\r\nFinal  : \r\n")
 	statistic_file_object.write("True Activities: \r\n")
 	for true_y in teY:
 		statistic_file_object.write(str(true_y)+"\r\n")
@@ -154,7 +178,7 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 
 # evaluate with r^2
 	R2 = data_loader.R2(np.array(predict_result), teY)
-	print "R2 : ", R2
+	#print "R2 : ", R2
 
 	# write file
 	statistic_file_object.write("R2 : \r\n")
@@ -162,13 +186,13 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 
 	# Save the variables to disk
 	save_path = saver.save(sess, TRAINED_MODEL_ADDRESS)
-	print "Model saved in file: ", save_path
+	#print "Model saved in file: ", save_path
 
 
 log_file_object.close()
-print "Close :", CONSOLE_OUTPUT
+#print "Close :", CONSOLE_OUTPUT
 statistic_file_object.close()
-print "Close :", STATISTIC_RESULT
+#print "Close :", STATISTIC_RESULT
 
 
 

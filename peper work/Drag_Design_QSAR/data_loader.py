@@ -3,6 +3,7 @@ import csv
 import numpy as np
 import math
 
+
 ''' load csv data '''
 def readcsv(filename):
 	header = []
@@ -81,7 +82,43 @@ def get_feature_normalization_arr_extract(train_headers, test_headers):
 				break
 	return len(result_headers), result_headers
 
+''' [Adjustment] Filter features which has non-zeros less than NON_ZERO_CUTOFF'''
+''' Base on training set '''
+def filter_dataset(train_set, test_set, NON_ZERO_CUTOFF):
+	# statistic num of non-zeros of each features
+	num_features = train_set.shape[1]
+	fea_stat = []
+	for i in range(num_features):
+		count_non_zero = 0
+		feature = train_set[:,i]
+		for ele in feature:
+			if ele != 0:
+				count_non_zero+=1
+		fea_stat.append(count_non_zero)
+	
+	# init results
+	result_train = np.array([0]) 
+	result_test = np.array([0])
 
+	flag_first = 1
+	# filter with cutoff
+	for index in range(len(fea_stat)):
+		if fea_stat[index] >= NON_ZERO_CUTOFF:
+			if flag_first == 1:
+				result_train = train_set[:,index]
+				result_test = test_set[:,index]
+				flag_first = 0	
+			else:
+				result_train = np.vstack((result_train.T, train_set[:, index])).T
+				result_test = np.vstack((result_test.T, test_set[:, index])).T
+	
+	print "Training shape:"
+	print result_train.shape
+	print "Test shape:"
+	print result_test.shape
+	
+	print "Data Sets Filter Done."
+	return result_train, result_test
 
 def contract_data_set(train_file, test_file, strategy="merge"):
 	headers_train, descriptors_train_raw, activities_train = readcsv(train_file)
@@ -201,7 +238,7 @@ class DataSet(object):
 		end = self._index_in_epoch
 		return self._descriptors[start:end], self._activities[start:end]
 
-def read_data_sets(file_dir_train, file_dir_test):
+def read_data_sets(file_dir_train, file_dir_test, NON_ZERO_CUTOFF):
 	class DataSets(object):
 		pass
 	data_sets = DataSets()
@@ -210,8 +247,8 @@ def read_data_sets(file_dir_train, file_dir_test):
 
 	train_descriptors_raw, train_activities_raw, test_descriptors_raw, test_activities_raw = contract_data_set(file_dir_train, file_dir_test, strategy="extract")
 
-	train_descriptors = np.array(train_descriptors_raw)
-	#train_descriptors = np.array(log_transform_matrix(train_descriptors_raw))
+	#train_descriptors = np.array(train_descriptors_raw)
+	train_descriptors = np.array(log_transform_matrix(train_descriptors_raw))
 	train_activities = zero_mean_and_unit_variance(train_activities_raw)
 	#train_activities_one_hot = activity_format(train_activities_log, CLASS_NUM)
 	
@@ -220,8 +257,8 @@ def read_data_sets(file_dir_train, file_dir_test):
 	#train_activities = np.array(train_activities_one_hot)
 
 	
-	test_descriptors = np.array(test_descriptors_raw)
-	#test_descriptors = np.array(log_transform_matrix(test_descriptors_raw))
+	#test_descriptors = np.array(test_descriptors_raw)
+	test_descriptors = np.array(log_transform_matrix(test_descriptors_raw))
 	test_activities = zero_mean_and_unit_variance(test_activities_raw)
 	#test_activities_one_hot = activity_format(test_activities_log, CLASS_NUM)
 	
@@ -230,12 +267,18 @@ def read_data_sets(file_dir_train, file_dir_test):
 	
 	#test_activities = np.array(test_activities_one_hot)
 
+	''' filter features'''
+	train_descriptors, test_descriptors = filter_dataset(train_descriptors, test_descriptors, NON_ZERO_CUTOFF)
+
 	data_sets.train = DataSet(train_descriptors, train_activities)
 	
 	data_sets.test = DataSet(test_descriptors, test_activities)
 	
 
 	return data_sets
+
+
+''' Create Test dataset from Training  '''
 
 
 
@@ -424,4 +467,5 @@ def log_transform_2(matrix):
 				#np.append(matrix_log10_result, row_log10_transform, axis=0)
 				matrix_log10_result.append(row_log10_transform)
 	return matrix_log10_result
+
 
