@@ -6,22 +6,22 @@ import sys
 
 # system_parameters
 PARAM_TEST_OUTPUT_FILE_NAME = sys.argv[1]
-#PARAM_LEARNING_RATE = float(sys.argv[2])
-PARAM_MOMENTUM = float(sys.argv[2])
+PARAM_LEARNING_RATE = float(sys.argv[2])
+#PARAM_MOMENTUM = float(sys.argv[2])
 #PARAM_NON_ZEROS_CUTOFF = int(sys.argv[2])
-PARAM_NON_ZEROS_CUTOFF = 1000
+PARAM_NON_ZEROS_CUTOFF = 0
 
 LOG_ADDRESS="/mnt/DeepLearning4Medical/tensorflow_log/drag_design"
 #LOG_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/tensorflow_log/drag_design"
-TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/160118/other_para_test/"+PARAM_TEST_OUTPUT_FILE_NAME
+TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/160121/"+PARAM_TEST_OUTPUT_FILE_NAME+"_test"
 #TRAINED_MODEL_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/trained_model/drag_design/test1"
 
 
-CONSOLE_OUTPUT="/mnt/DeepLearning4Medical/console_output/160118/other_para_test/"+PARAM_TEST_OUTPUT_FILE_NAME+".txt"
-STATISTIC_RESULT="/mnt/DeepLearning4Medical/statistic_result/160118/other_para_test/"+PARAM_TEST_OUTPUT_FILE_NAME+".txt"
+CONSOLE_OUTPUT="/mnt/DeepLearning4Medical/console_output/160121/"+PARAM_TEST_OUTPUT_FILE_NAME+"_test2.txt"
+STATISTIC_RESULT="/mnt/DeepLearning4Medical/statistic_result/160121/"+PARAM_TEST_OUTPUT_FILE_NAME+"_test2.txt"
 
 
-NUM_CORES = 4
+NUM_CORES = 10
 
 
 # set random seed
@@ -67,8 +67,8 @@ def build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo):
 
 
 # file address in docker envirement
-data_file_train = "/mnt/DeepLearning4Medical/data/drag_design/NK1_training_disguised.csv"
-data_file_test = "/mnt/DeepLearning4Medical/data/drag_design/NK1_test_disguised.csv"
+data_file_train = "/mnt/DeepLearning4Medical/data/drag_design/"+PARAM_TEST_OUTPUT_FILE_NAME+"_training_disguised.csv"
+data_file_test = "/mnt/DeepLearning4Medical/data/drag_design/"+PARAM_TEST_OUTPUT_FILE_NAME+"_test_disguised.csv"
 
 #data_file_train = "/Users/peter/Documents/Work/data/drag_design/METAB_training_disguised.csv"
 #data_file_test = "/Users/peter/Documents/Work/data/drag_design/METAB_test_disguised.csv"
@@ -113,8 +113,8 @@ y_ = build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo)
 #cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_, Y))
 cost = tf.reduce_mean(tf.pow(Y-y_, 2))
 
-#train_op = tf.train.GradientDescentOptimizer(PARAM_LEARNING_RATE).minimize(cost)
-train_op = tf.train.MomentumOptimizer(0.05, PARAM_MOMENTUM).minimize(cost)
+train_op = tf.train.GradientDescentOptimizer(PARAM_LEARNING_RATE).minimize(cost)
+#train_op = tf.train.MomentumOptimizer(0.05, PARAM_MOMENTUM).minimize(cost)
 #train_op = tf.train.AdagradOptimizer(PARAM_LEARNING_RATE).minimize(cost)
 #train_op = tf.train.AdamOptimizer(PARAM_LEARNING_RATE).minimize(cost)
 #train_op = tf.train.FtrlOptimizer(PARAM_LEARNING_RATE).minimize(cost)
@@ -144,14 +144,11 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 
 	for epoch in range(350):
 		#print "Training in epoch: ", epoch
-		log_file_object.write("Training in epoch: "+str(epoch)+"\r\n")
+		#log_file_object.write("Training in epoch: "+str(epoch)+"\r\n")
 		for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
 			sess.run(train_op, feed_dict={X: trX[start:end], Y: trY[start:end]})
 			cost_log = sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
-			#print "Cost", cost_log
-			
-			# write file
-			log_file_object.write("Cost: "+str(cost_log)+"\r\n")
+			log_file_object.write(str(cost_log)+"\r\n")
 		log_file_object.flush()
 
 		predict_result = sess.run(predict_op, feed_dict={X: teX, Y: teY})
@@ -161,11 +158,15 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 		statistic_file_object.write(str(R2)+"\r\n")
 		statistic_file_object.flush()
 
+
 # predict option
 	#batch_xs, batch_ys = drag_data.test.next_batch(128)
-	predict_result = sess.run(predict_op, feed_dict={X: teX, Y: teY})
+	predict_result_temp = sess.run(predict_op, feed_dict={X: teX, Y: teY})
 	#print predict_result
 
+	predict_result = []
+	for pred in predict_result_temp:
+		predict_result.append(pred[0])
 
 	# write file
 	statistic_file_object.write("\r\nFinal  : \r\n")

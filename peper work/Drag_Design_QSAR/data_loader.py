@@ -23,6 +23,18 @@ def readcsv(filename):
 
 	return header, descriptors, activities
 
+
+def load_random_forest_result(filename):
+	activities = []
+	with open(filename, 'r') as f:
+		for line in f:
+			activities.append(float(line))		
+
+	print "Finished load ",filename
+	return activities
+
+
+
 ''' [Normalization] Merge the headers between train set and test set '''
 def get_feature_normalization_arr_merge(train_headers, test_headers):
 
@@ -268,7 +280,7 @@ def read_data_sets(file_dir_train, file_dir_test, NON_ZERO_CUTOFF):
 	#test_activities = np.array(test_activities_one_hot)
 
 	''' filter features'''
-	train_descriptors, test_descriptors = filter_dataset(train_descriptors, test_descriptors, NON_ZERO_CUTOFF)
+	#train_descriptors, test_descriptors = filter_dataset(train_descriptors, test_descriptors, NON_ZERO_CUTOFF)
 
 	data_sets.train = DataSet(train_descriptors, train_activities)
 	
