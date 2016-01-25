@@ -8,24 +8,22 @@ import sys
 PARAM_TEST_FILE_NAME = sys.argv[1]
 PARAM_TEST_OUTPUT_FILE_NAME = sys.argv[2]
 PARAM_LEARNING_RATE = float(sys.argv[3])
-PARAM_MOMENTUM = float(sys.argv[4])
-PARAM_DECAY = float(sys.argv[5])
+PARAM_NUM_EPOCH = int(sys.argv[4])
+#PARAM_MOMENTUM = float(sys.argv[4])
 #PARAM_NON_ZEROS_CUTOFF = int(sys.argv[2])
 PARAM_NON_ZEROS_CUTOFF = 0
 
 LOG_ADDRESS="/mnt/DeepLearning4Medical/tensorflow_log/drag_design"
 #LOG_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/tensorflow_log/drag_design"
-TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/160125/"+PARAM_TEST_OUTPUT_FILE_NAME
+TRAINED_MODEL_ADDRESS="/mnt/DeepLearning4Medical/trained_model/drag_design/160122/"+PARAM_TEST_OUTPUT_FILE_NAME
 #TRAINED_MODEL_ADDRESS="/Users/peter/Documents/Work/DL4Medical_WorkTest/work_code/trained_model/drag_design/test1"
 
 
-COST_STEP_OUTPUT="/mnt/DeepLearning4Medical/console_output/160125/"+PARAM_TEST_OUTPUT_FILE_NAME+".step_cost.txt"
-COST_EPOCH_OUTPUT="/mnt/DeepLearning4Medical/console_output/160125/"+PARAM_TEST_OUTPUT_FILE_NAME+".epoch_cost.txt"
-STATISTIC_RESULT_TEST="/mnt/DeepLearning4Medical/statistic_result/160125/"+PARAM_TEST_OUTPUT_FILE_NAME+"_test.txt"
-STATISTIC_RESULT_TRAINING="/mnt/DeepLearning4Medical/statistic_result/160125/"+PARAM_TEST_OUTPUT_FILE_NAME+"_train.txt"
+CONSOLE_OUTPUT="/mnt/DeepLearning4Medical/console_output/160122/"+PARAM_TEST_OUTPUT_FILE_NAME+".txt"
+STATISTIC_RESULT="/mnt/DeepLearning4Medical/statistic_result/160122/"+PARAM_TEST_OUTPUT_FILE_NAME+".txt"
 
 
-NUM_CORES = 6
+NUM_CORES = 3
 
 
 # set random seed
@@ -117,12 +115,12 @@ y_ = build_model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo)
 #cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(y_, Y))
 cost = tf.reduce_mean(tf.pow(Y-y_, 2))
 
-#train_op = tf.train.GradientDescentOptimizer(PARAM_LEARNING_RATE).minimize(cost)
+train_op = tf.train.GradientDescentOptimizer(PARAM_LEARNING_RATE).minimize(cost)
 #train_op = tf.train.MomentumOptimizer(PARAM_LEARNING_RATE, PARAM_MOMENTUM).minimize(cost)
 #train_op = tf.train.AdagradOptimizer(PARAM_LEARNING_RATE).minimize(cost)
 #train_op = tf.train.AdamOptimizer(PARAM_LEARNING_RATE).minimize(cost)
 #train_op = tf.train.FtrlOptimizer(PARAM_LEARNING_RATE).minimize(cost)
-train_op = tf.train.RMSPropOptimizer(PARAM_LEARNING_RATE, decay=PARAM_DECAY, momentum=PARAM_MOMENTUM).minimize(cost)
+#train_op = tf.train.RMSPropOptimizer(PARAM_LEARNING_RATE, 0.9).minimize(cost)
 
 # Add ops to save and restore all the variables
 saver = tf.train.Saver()
@@ -130,18 +128,14 @@ predict_op = y_
 
 
 
-''' Init output objects '''
-log_step_cost_object = open(COST_STEP_OUTPUT, 'w')
-log_epoch_cost_object = open(COST_EPOCH_OUTPUT, 'w')
-statistic_file_test_object = open(STATISTIC_RESULT_TEST, 'w')
-statistic_file_train_object = open(STATISTIC_RESULT_TRAINING, 'w')
+# Create output log && statistic file objects
+log_file_object = open(CONSOLE_OUTPUT, 'w')
+#print "Write :", CONSOLE_OUTPUT
+statistic_file_object = open(STATISTIC_RESULT, 'w')
+#print "Write :", STATISTIC_RESULT
 
 
-''' console model parameters '''
-log_step_cost_object.write("Learning rate: "+str(PARAM_LEARNING_RATE)+"  Momentum:  "+str(PARAM_MOMENTUM)+"  Decay:  "+str(PARAM_DECAY)+"\r\n")
-log_epoch_cost_object.write("Learning rate: "+str(PARAM_LEARNING_RATE)+"  Momentum:  "+str(PARAM_MOMENTUM)+"  Decay:  "+str(PARAM_DECAY)+"\r\n")
-statistic_file_test_object.write("Learning rate: "+str(PARAM_LEARNING_RATE)+"  Momentum:  "+str(PARAM_MOMENTUM)+"  Decay:  "+str(PARAM_DECAY)+"\r\n")
-statistic_file_train_object.write("Learning rate: "+str(PARAM_LEARNING_RATE)+"  Momentum:  "+str(PARAM_MOMENTUM)+"  Decay:  "+str(PARAM_DECAY)+"\r\n")
+
 
 init = tf.initialize_all_variables()
 with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, intra_op_parallelism_threads=NUM_CORES)) as sess:
@@ -150,27 +144,21 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 	merged_summary_op = tf.merge_all_summaries()
 	summary_writer = tf.train.SummaryWriter(LOG_ADDRESS, tf.Graph.as_graph_def(sess.graph))
 
-	for epoch in range(350):
+	for epoch in range(PARAM_NUM_EPOCH):
 		#print "Training in epoch: ", epoch
-		#log_step_cost_object.write("Training in epoch: "+str(epoch)+"\r\n")
-		for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
-			sess.run(train_op, feed_dict={X: trX[start:end], Y: trY[start:end]})
-			step_cost = sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
-			log_step_cost_object.write(str(step_cost)+"\r\n")
-			log_step_cost_object.flush()
-		epoch_cost = sess.run(cost, feed_dict={X: trX[start:end], Y: trY[start:end]})
-		log_epoch_cost_object.write(str(epoch_cost)+"\r\n")
-		log_epoch_cost_object.flush()
+		#log_file_object.write("Training in epoch: "+str(epoch)+"\r\n")
+		#for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
+		sess.run(train_op, feed_dict={X: trX, Y: trY})
+		cost_log = sess.run(cost, feed_dict={X: trX, Y: trY})
+		log_file_object.write(str(cost_log)+"\r\n")
+		log_file_object.flush()
 
 		predict_result = sess.run(predict_op, feed_dict={X: teX, Y: teY})
+		statistic_file_object.write("Training in epoch: "+str(epoch)+"\r\n")
+		statistic_file_object.write("R2 : \r\n")
 		R2 = data_loader.R2(np.array(predict_result), teY)
-		statistic_file_test_object.write(str(R2)+"\r\n")
-		statistic_file_test_object.flush()
-
-		predict_result_2 = sess.run(predict_op, feed_dict={X: trX, Y: trY})
-		R2 = data_loader.R2(np.array(predict_result_2), trY)
-		statistic_file_train_object.write(str(R2)+"\r\n")
-		statistic_file_train_object.flush()
+		statistic_file_object.write(str(R2)+"\r\n")
+		statistic_file_object.flush()
 
 
 # predict option
@@ -183,31 +171,32 @@ with tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=NUM_CORES, in
 		predict_result.append(pred[0])
 
 	# write file
-	statistic_file_test_object.write("\r\nFinal  : \r\n")
-	statistic_file_test_object.write("True Activities: \r\n")
+	statistic_file_object.write("\r\nFinal  : \r\n")
+	statistic_file_object.write("True Activities: \r\n")
 	for true_y in teY:
-		statistic_file_test_object.write(str(true_y)+"\r\n")
-	statistic_file_test_object.write("Predict Activities: \r\n")
+		statistic_file_object.write(str(true_y)+"\r\n")
+	statistic_file_object.write("Predict Activities: \r\n")
 	for predict_y in predict_result:
-		statistic_file_test_object.write(str(predict_y)+"\r\n")
+		statistic_file_object.write(str(predict_y)+"\r\n")
 
 # evaluate with r^2
 	R2 = data_loader.R2(np.array(predict_result), teY)
 	#print "R2 : ", R2
 
 	# write file
-	statistic_file_test_object.write("R2 : \r\n")
-	statistic_file_test_object.write(str(R2)+"\r\n")
+	statistic_file_object.write("R2 : \r\n")
+	statistic_file_object.write(str(R2)+"\r\n")
 
 	# Save the variables to disk
 	save_path = saver.save(sess, TRAINED_MODEL_ADDRESS)
 	#print "Model saved in file: ", save_path
 
 
-log_step_cost_object.close()
-log_epoch_cost_object.close()
-statistic_file_test_object.close()
-statistic_file_train_object.close()
+log_file_object.close()
+#print "Close :", CONSOLE_OUTPUT
+statistic_file_object.close()
+#print "Close :", STATISTIC_RESULT
+
 
 
 
