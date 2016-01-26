@@ -258,6 +258,7 @@ def read_data_sets(file_dir_train, file_dir_test, NON_ZERO_CUTOFF):
 	''' load data files && format(log transform) '''
 
 	train_descriptors_raw, train_activities_raw, test_descriptors_raw, test_activities_raw = contract_data_set(file_dir_train, file_dir_test, strategy="extract")
+	#train_descriptors_raw, train_activities_raw, test_descriptors_raw, test_activities_raw = contract_data_set(file_dir_train, file_dir_test, strategy="merge")
 
 	#train_descriptors = np.array(train_descriptors_raw)
 	train_descriptors = np.array(log_transform_matrix(train_descriptors_raw))
