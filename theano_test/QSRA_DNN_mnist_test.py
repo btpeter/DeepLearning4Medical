@@ -1,9 +1,12 @@
 import theano
-from theano import tensor as T 
+from theano import tensor as T
 import numpy as np 
-import data_loader
+import input_data
 
 PARAM_NON_ZEROS_CUTOFF = 0
+
+OUTPUT = "/mnt/DeepLearning4Medical/Theano_test_output/mnist_output.txt"
+out_object = open(OUTPUT, 'w')
 
 def floatX(X):
     return np.asarray(X, dtype=theano.config.floatX)
@@ -65,27 +68,17 @@ def model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo):
 	pre_h4 = T.nnet.relu(T.dot(h3, w4)) + b4
 	h4 = drop(pre_h4, 0.1)
 
-	pyx = T.dot(h4, wo) + bo
+	pyx = T.nnet.softmax(T.dot(h4, wo)+bo)
 
 	return pyx
 
 
 #### Loading data sets #####
 
-data_file_train = "/mnt/DeepLearning4Medical/data/drag_design/NK1_training_disguised.csv"
-data_file_test = "/mnt/DeepLearning4Medical/data/drag_design/NK1_test_disguised.csv"
-
-# fill the file_dirs
-drag_data = data_loader.read_data_sets(data_file_train, data_file_test, PARAM_NON_ZEROS_CUTOFF)
-trX, trY, teX, teY = drag_data.train.descriptors, drag_data.train.activities, drag_data.test.descriptors, drag_data.test.activities
-num_features = drag_data.train.num_features
 
 ############################
-
-COST_OUTPUT = "/mnt/DeepLearning4Medical/Theano_test_output/NK1_cost_test3.txt"
-R2_OUTPUT = "/mnt/DeepLearning4Medical/Theano_test_output/NK1_R2_test3.txt"
-cost_object = open(COST_OUTPUT, 'w')
-R2_object = open(R2_OUTPUT, 'w')
+mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
+trX, trY, teX, teY = mnist.train.images, mnist.train.labels, mnist.test.images, mnist.test.labels
 
 ############################
 
@@ -93,7 +86,7 @@ X = T.fmatrix()
 Y = T.fmatrix()
 
 
-w1 = init_weights((num_features,4000))
+w1 = init_weights((784,4000))
 b1 = init_bias(4000)
 
 w2 = init_weights((4000,2000))
@@ -105,13 +98,16 @@ b3 = init_bias(1000)
 w4 = init_weights((1000,1000))
 b4 = init_bias(1000)
 
-wo = init_weights((1000,1))
-bo = init_bias(1)
+wo = init_weights((1000,10))
+bo = init_bias(10)
 
 y_ = model(X, w1, b1, w2, b2, w3, b3, w4, b4, wo, bo)
-p_y = y_
+#p_y = y_
+p_y = T.argmax(y_, axis=1)
 
-cost = T.mean(T.sqr(y_ - Y))
+#cost = T.mean(T.sqr(y_ - Y))
+cost = T.mean(T.nnet.categorical_crossentropy(y_, Y))
+
 params = [w1, b1, w2, b2, w3, b3, w4, b4, wo, bo]
 #updates = sgd(cost, params)
 updates = gradient_updates_momentum_L2(cost, params, 0.05, 0.9, 0.0001)
@@ -119,21 +115,14 @@ updates = gradient_updates_momentum_L2(cost, params, 0.05, 0.9, 0.0001)
 train = theano.function(inputs=[X, Y], outputs=cost, updates=updates, allow_input_downcast=True)
 predict = theano.function(inputs=[X], outputs=p_y, allow_input_downcast=True)
 
-for epoch in range(350):
-	for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
-		minibacth_X = trX[start:end]
-		minibacth_Y = trY[start:end]
-		minibacth_Y = minibacth_Y.reshape(minibacth_Y.shape[0],1)
-		cost = train(minibacth_X, minibacth_Y)
-		cost_object.write(str(cost)+"\r\n")
-		cost_object.flush()
-	predict_result = predict(teX)
-	R2 = data_loader.R2(np.array(predict_result), teY)
-	R2_object.write(str(R2)+"\r\n")
-	R2_object.flush()
+for i in range(100):
+    for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
+        cost = train(trX[start:end], trY[start:end])
+    predict_result = np.mean(np.argmax(teY, axis=1) == predict(teX))
+    out_object.write(str(predict_result)+"\r\n")
+    out_object.flush()
 
-R2_object.close()	
-cost_object.close()
+out_object.close()
 
 
 
